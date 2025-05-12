@@ -1,0 +1,115 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -220
+      ],
+      "id": "d80135a7-7483-430b-8096-fffc0f588fa3",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/n8n_data/*.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -220
+      ],
+      "id": "3b188562-d6e9-45f5-9c20-0bc637023313",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "options": {
+          "delimiter": ";",
+          "encoding": "utf-8"
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -220
+      ],
+      "id": "3def37d1-5def-45c4-8a87-c1a99b6608ed",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "chatId": "5302038938",
+        "text": "Arquivo lido com sucesso",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        -220
+      ],
+      "id": "2fb18ddc-5505-4098-bf04-0b71d2571f5d",
+      "name": "Telegram",
+      "webhookId": "e6fc2a71-969e-4cb0-a6ac-3a26182a2701",
+      "credentials": {
+        "telegramApi": {
+          "id": "BfG4Eh895OaibX7h",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "289ceeec-3483-4b47-8e00-43cc736bfcf1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "653f3b6f12ca174f79182c9e0f24914ac3f049a96137015f05f437560d480e42"
+  },
+  "id": "OBf9pQ7vqMlHOUXF",
+  "tags": []
+}

@@ -1,0 +1,28 @@
+# Use uma imagem base Python 3.12 Alpine
+FROM python:3.12-alpine
+
+# Mudar para usuário root para permitir instalações
+USER root
+
+# Instale as dependências: Flask e PyMuPDF
+RUN apk add --no-cache libjpeg-turbo-dev zlib-dev && \
+    pip install --no-cache-dir Flask PyMuPDF
+
+# Defina o diretório de trabalho padrão
+# Removido o comentário da linha WORKDIR
+WORKDIR /app
+
+# Removida a linha COPY parser_service.py /app/
+# O arquivo será mapeado via volume mount no docker-compose.yaml
+
+# Exponha a porta que o serviço Flask usará
+EXPOSE 5000
+
+# --- COMANDO TEMPORÁRIO PARA MANTER O CONTAINER RODANDO ---
+# Isso impede que o container saia e permite acesso via docker exec
+# Este comando deve ser executado corretamente agora que o WORKDIR está limpo
+CMD ["tail", "-f", "/dev/null"]
+# --------------------------------------------------------
+
+# Retornar ao usuário padrão (opcional)
+# USER python

@@ -1,0 +1,181 @@
+{
+  "name": "Finasy_RFA_WF",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "",
+          "readStatus": "unread",
+          "sender": "todomundo@nubank.com.br"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -660,
+        -60
+      ],
+      "id": "ca26e039-ffc2-4b98-a72c-89a0c67800ad",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1LixobO7paJxlPy6",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Lista que armazenará os itens processados (cada anexo será um item independente)\nresults = []\n\n# Itera sobre cada e-mail capturado pelo Gmail Trigger\nfor email in items:\n    # Acessa os dados binários (anexos) do e-mail\n    binary_data = email['binary']\n    \n    # Itera sobre cada chave (nome do arquivo) nos anexos\n    for file_key in binary_data:\n        # Cria um NOVO ITEM para cada anexo\n        new_item = {\n            'json': {},  # Metadados adicionais (se necessário)\n            'binary': {\n                'data': {\n                    'data': binary_data[file_key]['data'],  # Conteúdo binário do arquivo\n                    'mimeType': binary_data[file_key]['mimeType'],  # Tipo MIME (ex: application/pdf)\n                    'fileName': binary_data[file_key]['fileName']  # Nome do arquivo\n                }\n            }\n        }\n        results.append(new_item)\n\nreturn results"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        -60
+      ],
+      "id": "18be9f52-bc86-4218-b372-0980f64c8d37",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/n8n_data/{{ $binary.data.fileName }}",
+        "options": {
+          "append": false
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -60
+      ],
+      "id": "be538d7f-6975-4c3d-9798-0d24a2ba7be8",
+      "name": "Read/Write Files from Disk",
+      "alwaysOutputData": true,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail Trigger').item.json.messageId }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        60,
+        -240
+      ],
+      "id": "bcb794e2-cff9-4957-a440-343d41d11a72",
+      "name": "Gmail",
+      "webhookId": "6e8f8a4c-1a97-4f6e-9d71-664cf2cc2687",
+      "notesInFlow": false,
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1LixobO7paJxlPy6",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2db3a372-81c1-41f8-b4b1-1d4c9297547c",
+              "name": "message_id",
+              "value": "={{ $json.messageId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        -360
+      ],
+      "id": "0b92453f-595b-494c-b090-c73e528877f2",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "663e92dd-a66e-4784-875c-f7bfc453af87",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "653f3b6f12ca174f79182c9e0f24914ac3f049a96137015f05f437560d480e42"
+  },
+  "id": "78PxkC1fep3RLW8t",
+  "tags": []
+}

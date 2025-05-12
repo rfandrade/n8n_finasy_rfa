@@ -1,0 +1,596 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "",
+          "readStatus": "unread",
+          "sender": "todomundo@nubank.com.br"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -660,
+        -20
+      ],
+      "id": "777d216f-10ce-4b79-b9d2-fe7c1aeb0dcd",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w2qVtx1MJd1BSwkp",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Lista que armazenará os itens processados (cada anexo será um item independente)\nresults = []\n\n# Itera sobre cada e-mail capturado pelo Gmail Trigger\nfor email in items:\n\t# Acessa os dados binários (anexos) do e-mail\n\tbinary_data = email['binary']\n\t# Obtém o ID do e-mail original a partir da saída do trigger\n\toriginal_email_id = email['json']['id']\n\n\t# Itera sobre cada chave (nome do arquivo) nos anexos\n\tfor file_key in binary_data:\n\t\t# Cria um NOVO ITEM para cada anexo\n\t\tnew_item = {\n\t\t\t'json': {\n\t\t\t\t'originalEmailId': original_email_id,\n\t\t\t\t'fileName': binary_data[file_key]['fileName'],\n\t\t\t\t'mimeType': binary_data[file_key]['mimeType'],\n\t\t\t\t'emailSubject': email['json']['subject']\n\t\t\t},\n\t\t\t'binary': {\n\t\t\t\t'data': {\n\t\t\t\t\t'data': binary_data[file_key]['data'],\n\t\t\t\t\t'mimeType': binary_data[file_key]['mimeType'],\n\t\t\t\t\t'fileName': binary_data[file_key]['fileName']\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tresults.append(new_item)\n\nreturn results"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        -20
+      ],
+      "id": "b3b09ba2-91f8-45cd-8a53-320fcd2ac989",
+      "name": "Code (Extract Attachments)"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/shared_staging/{{ $json.fileName }}",
+        "options": {
+          "append": false
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        -20
+      ],
+      "id": "f70998b1-d052-47af-9844-f16afcb18fcf",
+      "name": "Save Attachment to Staging"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://parser_service_rfa:5000/parse_pdf",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "filePath",
+              "value": "={{ $json.fileName }}"
+            },
+            {
+              "name": "fileName",
+              "value": "={{ $('Code (Extract Attachments)').item.json.fileName }}"
+            },
+            {
+              "name": "originalEmailId",
+              "value": "={{ $('Code (Extract Attachments)').item.json.originalEmailId }}"
+            },
+            {
+              "name": "emailSubject",
+              "value": "={{ $json.emailSubject }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        40,
+        -20
+      ],
+      "id": "c8d6c566-7e4a-4205-b089-8ea9cad14ba6",
+      "name": "HTTP Request (Call Parser Service)"
+    },
+    {
+      "parameters": {
+        "chatId": "5302038938",
+        "text": "={{ $json.transactionCount }} transações encontradas na fatura Total: R$ {{ $json.invoiceTotal }}. Vencimento: {{ $json.dueDate }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        340,
+        -340
+      ],
+      "id": "1f22d60e-35db-4206-ad12-f4dc580865d6",
+      "name": "Telegram Notification",
+      "webhookId": "e5211e39-f61b-4bc6-98fd-7d49fa8babb5",
+      "alwaysOutputData": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "I5WFjV3S0k3LRxRU",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.originalEmailId }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        340,
+        -20
+      ],
+      "id": "51bcf2d8-6423-43fc-8585-fe45f38a0f2a",
+      "name": "Gmail",
+      "webhookId": "e0c91aeb-7913-4994-ae8e-06ad9947f4e6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w2qVtx1MJd1BSwkp",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "core_transaction",
+          "mode": "list",
+          "cachedResultName": "core_transaction"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "is_recurring_payment": false,
+            "date": "={{ $json.transactions[1].date }}",
+            "amount": "={{ $json.transactions[0].amount }}",
+            "description": "={{ $json.transactions[1].description }}",
+            "reference_month": "={{ $json.dueDate }}",
+            "reference_year": "={{ $json.dueDate }}",
+            "status": "='N'",
+            "type": "='W'",
+            "user_id": 2,
+            "account_id": 38,
+            "created_at": "2025-05-06T00:00:00",
+            "updated_at": "2025-05-06T00:00:00"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "is_recurring_payment",
+              "displayName": "is_recurring_payment",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reference_month",
+              "displayName": "reference_month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reference_year",
+              "displayName": "reference_year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "account_id",
+              "displayName": "account_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category_id",
+              "displayName": "category_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "payee_payer_id",
+              "displayName": "payee_payer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recurring_expense_ref_id",
+              "displayName": "recurring_expense_ref_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transaction_number",
+              "displayName": "transaction_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transfer_to_account_id",
+              "displayName": "transfer_to_account_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        640,
+        -340
+      ],
+      "id": "dd7d1af2-7005-40b3-a634-852500354db5",
+      "name": "Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "JBCN6txcbThrVjxj",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "302aef73-d704-49a9-9d4c-c92393952147",
+              "name": "=reference_month",
+              "value": "={{ $('HTTP Request (Call Parser Service)').item.json.dueDate.split('-')[1] }} ",
+              "type": "string"
+            },
+            {
+              "id": "af6f8371-6b73-4c70-8c56-3621de230a07",
+              "name": "reference_year",
+              "value": "={{ $('HTTP Request (Call Parser Service)').item.json.dueDate.split('-')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "ad6a5467-cd33-4f2e-8cb0-05b7a4a1680c",
+              "name": "notes",
+              "value": "={{ $json.description.includes('Parcela') ? $json.description.split(' - ')[1] : null }} ",
+              "type": "string"
+            },
+            {
+              "id": "5dcbe8ff-5138-4e1f-8ece-3b0afd5f49e5",
+              "name": "created_at",
+              "value": "={{ $now }} ",
+              "type": "string"
+            },
+            {
+              "id": "16f3a684-1606-4be8-b9e1-fe56c730cd9c",
+              "name": "updated_at",
+              "value": "={{ $now }} ",
+              "type": "string"
+            },
+            {
+              "id": "cf7b45c7-d719-4db4-86e9-496ba2141d17",
+              "name": "status",
+              "value": "='N'",
+              "type": "string"
+            },
+            {
+              "id": "dab84949-7549-4aa8-8a0a-167d311cbea8",
+              "name": "origin",
+              "value": "='cartao'",
+              "type": "string"
+            },
+            {
+              "id": "a293570d-0231-4623-83b9-8cb8b076c83d",
+              "name": "account_id",
+              "value": "38",
+              "type": "string"
+            },
+            {
+              "id": "f7a93b39-759e-4717-9d01-4d9eee4109e6",
+              "name": "user_id",
+              "value": "2",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        540,
+        280
+      ],
+      "id": "658c1463-8807-48ac-a0a6-4fee429e7f12",
+      "name": "Edit Fields",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "=transactions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        320,
+        280
+      ],
+      "id": "60358156-6fa3-4762-a6f5-3f223cfa3ad9",
+      "name": "Split Out Transactions",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "core_payeepayer",
+          "mode": "list",
+          "cachedResultName": "core_payeepayer"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "name",
+              "condition": "LIKE",
+              "value": "={{ $('Split Out Transactions').item.json.description.match(/.*? (.*?)(?: - Parcela|\\s*$)/)[1] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        800,
+        280
+      ],
+      "id": "f9281298-ee48-48bb-bf7d-3b0f9bbbd338",
+      "name": "Postgres1",
+      "credentials": {
+        "postgres": {
+          "id": "JBCN6txcbThrVjxj",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code (Extract Attachments)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Extract Attachments)": {
+      "main": [
+        [
+          {
+            "node": "Save Attachment to Staging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Attachment to Staging": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Call Parser Service)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Call Parser Service)": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Transactions": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Postgres1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "310a31ad-53cf-44af-ad25-dc15f3df7441",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3dc0039cd964bb558e3cf6baca2759a85b34bc70753f389defcfd1d21f5543c5"
+  },
+  "id": "NuiWafwmHxhzkqwa",
+  "tags": []
+}

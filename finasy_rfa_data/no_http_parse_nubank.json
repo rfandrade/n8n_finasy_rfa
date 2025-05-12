@@ -1,0 +1,42 @@
+{
+  "nodes": [
+	{
+	  "parameters": {
+	 	 "requestMethod": "POST",
+	 	 "url": "http://parser_service_rfa:5000/parse_pdf",
+	 	 "jsonBody": true,
+	 	 "bodyParameters": {
+	 	 "parameters": [
+	 		 {
+	 		 "name": "filePath",
+	 		 "value": "={{ $json.filePath }}" 
+	 		 },
+	 		 {
+	 		 "name": "fileName",
+	 		 "value": "={{ $json.fileName }}"
+	 		 },
+	 		 {
+	 		 "name": "originalEmailId",
+	 		 "value": "={{ $json.originalEmailId }}"
+	 		 },
+	 		 {
+	 		 "name": "emailSubject",
+	 		 "value": "={{ $json.emailSubject }}"
+	 		 }
+	 	 ]
+	 	 },
+	 	 "options": {
+	 	 "responseFormat": "json"
+	 	 }
+	  },
+	  "type": "n8n-nodes-base.httpRequest",
+	  "typeVersion": 3,
+	  "position": [
+	 	 -180,
+	 	 -60
+	  ],
+	  "id": "call_parser_service",
+	  "name": "HTTP Request (Call Parser Service)"
+	}
+   ]   
+}

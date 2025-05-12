@@ -1,0 +1,60 @@
+# Exemplo de docker-compose.yaml com n8n e serviço de parsing
+services:
+  n8n:
+    container_name: n8n_rfa
+    build:
+      context: . # O contexto de build é o diretório atual
+      dockerfile: Dockerfile # Use o Dockerfile do n8n (com Docker CLI instalado)
+    restart: always
+    ports:
+      - "5678:5678" # Porta do n8n
+    volumes:
+      # Volume para dados internos do n8n
+      - D:/n8n_data:/home/node/.n8n
+      # Mapeamento do volume para a pasta temporária de staging (acessível por ambos)
+      - D:/n8n_data/finasy_rfa_data/temp_staging:/shared_staging
+    environment:
+      # Suas variáveis de ambiente existentes
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      # A variável PYTHON no n8n container pode ser útil para outros nós Code
+      - PYTHON=/opt/venv/bin/python3
+      # Outras variáveis do n8n...
+    networks:
+      - n8n_network # Rede para comunicação interna
+
+  parser_service: # SERVIÇO PARA O MICROSERVIÇO DE PARSING
+    container_name: parser_service_rfa
+    build:
+      context: . # O contexto de build é o diretório atual (onde está o Dockerfile_parser_service)
+      dockerfile: Dockerfile_parser_service # Use o Dockerfile para o serviço de parsing (sem a cópia do script)
+    restart: always
+    ports:
+      # Mapeia a porta 5000 do container para a porta 5000 no host (opcional, para teste direto)
+      - target: 5000 # Porta interna do container
+        published: 5000 # Porta no host (opcional, remova se não for testar diretamente)
+        protocol: tcp
+        mode: ingress # Modo de publicação
+    volumes:
+      # Mapeia o MESMO caminho do host para o container Python (para arquivos temporários)
+      - D:/n8n_data/finasy_rfa_data/temp_staging:/shared_staging
+      # Mapeia o diretório no host onde está o script para o diretório /app no container
+      - D:/n8n_data/finasy_rfa_data/app:/app # Mapeia o diretório inteiro
+    # --- COMANDO PRINCIPAL PARA INICIAR O SERVIÇO FLASK ---
+    # Este comando será executado quando o container iniciar
+    # Substitui o comando de depuração com tail
+    command: ["python", "/app/app_parse_pdfNubank.py"]
+    # -----------------------------------------------------
+    networks:
+      - n8n_network # Conecta à mesma rede do n8n
+
+# Removidas as definições de volumes nomeados não utilizados
+# volumes:
+#   n8n_data:
+#   shared_staging_volume: # Removido, usando mapeamento direto
+
+networks:
+  n8n_network: # Rede para permitir comunicação entre containers
+    driver: bridge
+

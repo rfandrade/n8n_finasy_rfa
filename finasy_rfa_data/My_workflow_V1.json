@@ -1,0 +1,196 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "",
+          "readStatus": "unread",
+          "sender": "todomundo@nubank.com.br"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4d78ac3d-cc4c-433b-853b-db32ec79ca69",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w2qVtx1MJd1BSwkp",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Lista que armazenará os itens processados (cada anexo será um item independente)\nresults = []\n\n# Itera sobre cada e-mail capturado pelo Gmail Trigger\nfor email in items:\n    # Acessa os dados binários (anexos) do e-mail\n    binary_data = email['binary']\n    # Obtém o ID do e-mail original a partir da saída do trigger\n    original_email_id = email['json']['id']\n\n    # Itera sobre cada chave (nome do arquivo) nos anexos\n    for file_key in binary_data:\n        # Cria um NOVO ITEM para cada anexo\n        new_item = {\n            'json': {\n                'originalEmailId': original_email_id,\n                'fileName': binary_data[file_key]['fileName'],\n                'mimeType': binary_data[file_key]['mimeType'],\n                'emailSubject': email['json']['subject']\n            },\n            'binary': {\n                'data': {\n                    'data': binary_data[file_key]['data'],\n                    'mimeType': binary_data[file_key]['mimeType'],\n                    'fileName': binary_data[file_key]['fileName']\n                }\n            }\n        }\n        results.append(new_item)\n\nreturn results"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "2066c701-39f2-4310-93d2-2e4d2584f9b2",
+      "name": "Code (Extract Attachments)"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/finasy_rfa_data/temp_staging/{{ $json.fileName }}",
+        "options": {
+          "append": false
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "id": "8d5003e6-f87f-49c7-a6db-3146ada5d0b0",
+      "name": "Save Attachment to Staging"
+    },
+    {
+      "parameters": {
+        "url": "http://parser_service_rfa:5000/parse_pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        720,
+        0
+      ],
+      "id": "99022725-19cf-420e-bb72-d9b086625f14",
+      "name": "HTTP Request (Call Parser Service)"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_CHAT_ID",
+        "text": "={{ $json.transactionCount }} transações encontradas na fatura {{ $json.fileName }}. Total: R$ {{ $json.invoiceTotal }}. Vencimento: {{ $json.dueDate }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        200
+      ],
+      "id": "49565152-b274-4647-b40a-6ef01c21ec67",
+      "name": "Telegram Notification",
+      "webhookId": "e5211e39-f61b-4bc6-98fd-7d49fa8babb5",
+      "credentials": {
+        "telegramApi": {
+          "id": "I5WFjV3S0k3LRxRU",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        -300
+      ],
+      "id": "ab9f9790-ddf3-4e0d-a190-cc6b0a4494f5",
+      "name": "Gmail",
+      "webhookId": "e0c91aeb-7913-4994-ae8e-06ad9947f4e6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w2qVtx1MJd1BSwkp",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code (Extract Attachments)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Extract Attachments)": {
+      "main": [
+        [
+          {
+            "node": "Save Attachment to Staging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Attachment to Staging": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Call Parser Service)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Call Parser Service)": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "2511a820-8263-4d57-9514-1cd4e6dd7350",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3dc0039cd964bb558e3cf6baca2759a85b34bc70753f389defcfd1d21f5543c5"
+  },
+  "id": "NuiWafwmHxhzkqwa",
+  "tags": []
+}

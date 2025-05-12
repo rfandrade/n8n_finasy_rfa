@@ -1,0 +1,554 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "",
+          "readStatus": "unread",
+          "sender": "todomundo@nubank.com.br"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1600,
+        -520
+      ],
+      "id": "777d216f-10ce-4b79-b9d2-fe7c1aeb0dcd",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w2qVtx1MJd1BSwkp",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Lista que armazenará os itens processados (cada anexo será um item independente)\nresults = []\n\n# Itera sobre cada e-mail capturado pelo Gmail Trigger\nfor email in items:\n\t# Acessa os dados binários (anexos) do e-mail\n\tbinary_data = email['binary']\n\t# Obtém o ID do e-mail original a partir da saída do trigger\n\toriginal_email_id = email['json']['id']\n\n\t# Itera sobre cada chave (nome do arquivo) nos anexos\n\tfor file_key in binary_data:\n\t\t# Cria um NOVO ITEM para cada anexo\n\t\tnew_item = {\n\t\t\t'json': {\n\t\t\t\t'originalEmailId': original_email_id,\n\t\t\t\t'fileName': binary_data[file_key]['fileName'],\n\t\t\t\t'mimeType': binary_data[file_key]['mimeType'],\n\t\t\t\t'emailSubject': email['json']['subject']\n\t\t\t},\n\t\t\t'binary': {\n\t\t\t\t'data': {\n\t\t\t\t\t'data': binary_data[file_key]['data'],\n\t\t\t\t\t'mimeType': binary_data[file_key]['mimeType'],\n\t\t\t\t\t'fileName': binary_data[file_key]['fileName']\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tresults.append(new_item)\n\nreturn results"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1380,
+        -520
+      ],
+      "id": "b3b09ba2-91f8-45cd-8a53-320fcd2ac989",
+      "name": "Code (Extract Attachments)"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/shared_staging/{{ $json.fileName }}",
+        "options": {
+          "append": false
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -1140,
+        -520
+      ],
+      "id": "f70998b1-d052-47af-9844-f16afcb18fcf",
+      "name": "Save Attachment to Staging"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://parser_service_rfa:5000/parse_pdf",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "filePath",
+              "value": "={{ $json.fileName }}"
+            },
+            {
+              "name": "fileName",
+              "value": "={{ $('Code (Extract Attachments)').item.json.fileName }}"
+            },
+            {
+              "name": "originalEmailId",
+              "value": "={{ $('Code (Extract Attachments)').item.json.originalEmailId }}"
+            },
+            {
+              "name": "emailSubject",
+              "value": "={{ $json.emailSubject }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -900,
+        -520
+      ],
+      "id": "c8d6c566-7e4a-4205-b089-8ea9cad14ba6",
+      "name": "HTTP Request (Call Parser Service)"
+    },
+    {
+      "parameters": {
+        "chatId": "5302038938",
+        "text": "={{ $json.transactionCount }} transações encontradas na fatura Total: R$ {{ $json.invoiceTotal }}. Vencimento: {{ $json.dueDate }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -580
+      ],
+      "id": "1f22d60e-35db-4206-ad12-f4dc580865d6",
+      "name": "Telegram Notification",
+      "webhookId": "e5211e39-f61b-4bc6-98fd-7d49fa8babb5",
+      "alwaysOutputData": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "I5WFjV3S0k3LRxRU",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.originalEmailId }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -560,
+        -420
+      ],
+      "id": "51bcf2d8-6423-43fc-8585-fe45f38a0f2a",
+      "name": "Gmail",
+      "webhookId": "e0c91aeb-7913-4994-ae8e-06ad9947f4e6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w2qVtx1MJd1BSwkp",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "=transactions",
+        "options": {
+          "destinationFieldName": ""
+        }
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1620,
+        -260
+      ],
+      "id": "60358156-6fa3-4762-a6f5-3f223cfa3ad9",
+      "name": "Split Out Transactions",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "core_payeepayer",
+          "mode": "list",
+          "cachedResultName": "core_payeepayer"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "name",
+              "condition": "LIKE",
+              "value": "={{ $('Split Out Transactions').item.json.description.match(/^(?:Mp \\*|Dm \\*|Pg \\*|\\*|\\s*)(.*?)(?: - Parcela.*|\\s*$)/)?.[1]?.trim() || $json.description.trim() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1140,
+        -80
+      ],
+      "id": "f9281298-ee48-48bb-bf7d-3b0f9bbbd338",
+      "name": "Postgres (Search Payee)",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "JBCN6txcbThrVjxj",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Este script recebe a lista de dicionários retornada pelo nó Postgres (Search Payee)\n# items contém a lista de dicionários\n\noutput_items = []\n\n# Itera sobre os dicionários retornados pelo Postgres\nfor i, result_dict in enumerate(items):\n    # Acessa o item_index original do item de entrada para este nó Code\n    # O item de entrada para este nó Code é o resultado da busca no Postgres.\n    # O item_index original está no contexto do item de entrada.\n    original_item_index = None\n    # Acessa o item de entrada do n8n para este item de resultado\n    # No nó Code, o item de entrada correspondente ao item de saída atual é item.context.item\n    # No contexto, o item_index original é geralmente acessível via item.context.item.json.item_index\n    # ou item.context.itemIndex\n\n    # Tentativa 1: Acessar do contexto do item de entrada (formato item.context.item.json.item_index)\n    # Verifica se o item de entrada existe no contexto e tem a estrutura esperada\n    if hasattr(result_dict, 'context') and result_dict.context and 'item' in result_dict.context and \\\n       hasattr(result_dict.context['item'], 'json') and result_dict.context['item'].json and \\\n       'item_index' in result_dict.context['item'].json:\n         original_item_index = result_dict.context['item'].json['item_index']\n    # Tentativa 2: Acessar do contexto do item de entrada (formato item.context.itemIndex)\n    elif hasattr(result_dict, 'context') and result_dict.context and 'itemIndex' in result_dict.context:\n         original_item_index = result_dict.context['itemIndex']\n    # Tentativa 3: Acessar diretamente do item (menos provável para resultados de DB)\n    # Esta tentativa é menos relevante agora que sabemos que a entrada são dicionários crus\n    # elif hasattr(result_dict, 'json') and result_dict.json and 'item_index' in result_dict.json:\n    #      original_item_index = result_dict.json['item_index']\n\n\n    # Adiciona o item_index original ao dicionário de saída\n    # Modifica o dicionário diretamente\n    result_dict['original_item_index'] = original_item_index\n\n    # Adiciona o dicionário modificado à lista de saída\n    # O nó Code retorna dicionários como itens com .json\n    output_items.append({'json': result_dict})\n\n# Retorna a lista de itens (com .json) contendo os dicionários do Postgres + original_item_index\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        -80
+      ],
+      "id": "df0f9747-c477-4037-95fc-673c95004405",
+      "name": "Code (Add item_index to Payee Results)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "302aef73-d704-49a9-9d4c-c92393952147",
+              "name": "=reference_month",
+              "value": "={{ $('HTTP Request (Call Parser Service)').item.json.dueDate.split('-')[1] }} ",
+              "type": "string"
+            },
+            {
+              "id": "af6f8371-6b73-4c70-8c56-3621de230a07",
+              "name": "reference_year",
+              "value": "={{ $('HTTP Request (Call Parser Service)').item.json.dueDate.split('-')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "ad6a5467-cd33-4f2e-8cb0-05b7a4a1680c",
+              "name": "notes",
+              "value": "={{ $json.description.includes('Parcela') ? $json.description.split(' - ')[1] : null }} ",
+              "type": "string"
+            },
+            {
+              "id": "5dcbe8ff-5138-4e1f-8ece-3b0afd5f49e5",
+              "name": "created_at",
+              "value": "={{ $now }} ",
+              "type": "string"
+            },
+            {
+              "id": "16f3a684-1606-4be8-b9e1-fe56c730cd9c",
+              "name": "updated_at",
+              "value": "={{ $now }} ",
+              "type": "string"
+            },
+            {
+              "id": "cf7b45c7-d719-4db4-86e9-496ba2141d17",
+              "name": "status",
+              "value": "='N'",
+              "type": "string"
+            },
+            {
+              "id": "dab84949-7549-4aa8-8a0a-167d311cbea8",
+              "name": "origin",
+              "value": "='cartao'",
+              "type": "string"
+            },
+            {
+              "id": "a293570d-0231-4623-83b9-8cb8b076c83d",
+              "name": "account_id",
+              "value": "38",
+              "type": "string"
+            },
+            {
+              "id": "f7a93b39-759e-4717-9d01-4d9eee4109e6",
+              "name": "user_id",
+              "value": "2",
+              "type": "string"
+            },
+            {
+              "id": "0ea36e89-34f9-4fc5-b250-d8c5ca85e6e6",
+              "name": "",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "3894c2b9-31e5-46f0-90d1-7bd795788d0b",
+              "name": "=item_index",
+              "value": "={{ $json.item_index }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1460,
+        -80
+      ],
+      "id": "658c1463-8807-48ac-a0a6-4fee429e7f12",
+      "name": "Set Transaction Fields",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bb54653d-7944-4b12-bc22-50c8dc47bfca",
+              "name": "payee_payer_id",
+              "value": "={{ $json.json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -540,
+        -220
+      ],
+      "id": "74fade27-6015-48c2-b714-4cbc1552e13b",
+      "name": "Set (Assign Payee ID)"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "item_index",
+              "field2": "pairedItem.item"
+            }
+          ]
+        },
+        "joinMode": "keepEverything",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -760,
+        -220
+      ],
+      "id": "25746dca-5a3b-4bee-8db6-b5ae880c2170",
+      "name": "Merge (Payee Results)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "item_index",
+              "field2": "item_index"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -1300,
+        -240
+      ],
+      "id": "07b72dd1-5a0a-4dd2-9825-85314ae918f8",
+      "name": "Merge (Transactions and Fields)"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n    // Remover o campo 'json'\n    delete item.json.json;\n    delete item.binary;\n    delete item.pairedItem;\n    delete item.json.pairedItem;\n\n  // Se 'payee_pay_id' for null, definir um valor fixo\n    if (item.json.payee_payer_id === null) {\n        item.json.payee_payer_id = 1975; // Defina o valor fixo desejado\n    }\n\n    return { json: item };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        -220
+      ],
+      "id": "ec51472f-67ab-4799-a908-5a86f8b04c82",
+      "name": "Code (Clear Transaction)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code (Extract Attachments)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Extract Attachments)": {
+      "main": [
+        [
+          {
+            "node": "Save Attachment to Staging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Attachment to Staging": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Call Parser Service)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Call Parser Service)": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Transactions": {
+      "main": [
+        [
+          {
+            "node": "Set Transaction Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge (Transactions and Fields)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres (Search Payee)": {
+      "main": [
+        [
+          {
+            "node": "Code (Add item_index to Payee Results)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Add item_index to Payee Results)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Payee Results)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Set Transaction Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge (Transactions and Fields)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Set (Assign Payee ID)": {
+      "main": [
+        [
+          {
+            "node": "Code (Clear Transaction)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Payee Results)": {
+      "main": [
+        [
+          {
+            "node": "Set (Assign Payee ID)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Transactions and Fields)": {
+      "main": [
+        [
+          {
+            "node": "Postgres (Search Payee)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge (Payee Results)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Clear Transaction)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "44fd3847-2395-4f16-9849-d543fc30bfa0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3dc0039cd964bb558e3cf6baca2759a85b34bc70753f389defcfd1d21f5543c5"
+  },
+  "id": "NuiWafwmHxhzkqwa",
+  "tags": []
+}
